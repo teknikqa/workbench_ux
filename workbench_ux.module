@@ -1,0 +1,97 @@
+<?php
+/**
+ * @file
+ * Code for the Workbench (Moderation) User Experience Enhancements.
+ */
+
+/**
+ * Implements hook_menu_alter().
+ */
+function workbench_ux_menu_alter(&$items) {
+  $items['admin/workbench/sections']['access callback'] = false;
+}
+
+
+/**
+ * Implements hook_FORM_ID_form_alter().
+ */
+function workbench_ux_form_node_form_alter(&$form, &$form_state) {
+  // This must be a node form and a type that has moderation enabled
+  if (!workbench_moderation_node_type_moderated($form['type']['#value'])) {
+    return;
+  }
+  ($form['options']['#access'] ? $wrapper_id = 'options' : $wrapper_id = 'revision_information');
+  unset($form[$wrapper_id]['#group']);
+  $form[$wrapper_id]['#collapsed'] = FALSE;
+  $form[$wrapper_id]['#weight'] = 999;
+  $form['actions']['#weight'] = 1000;
+}
+
+
+/**
+ * Create the email selection form element.
+ *
+ * Creates the appropriate multi select list for a given role and stores
+ * some email transition information into the form element.
+ *
+ * @param array $form
+ *   The form array passed by reference
+ *
+ * @param object $params
+ *   A object containing information relating to the email transition
+ */
+function workbench_ux_create_form_element(&$form, $email_transition) {
+
+  $users = workbench_email_get_users($email_transition->rid);
+
+  if ($users) {
+    global $user;
+    foreach ($users as $uid => $account) {
+      if ($user->mail != $account->mail) {
+        $emails[$account->mail] = $account->name;
+      }
+    }
+    $role = user_role_load($email_transition->rid);
+    ($form['options']['#access'] ? $wrapper_id = 'options' : $wrapper_id = 'revision_information');
+    $form[$wrapper_id]['workflow_email'][$role->rid] = array(
+      '#type' => 'select',
+      '#title' => t("@role_name", array('@role_name' => ucwords($role->name))),
+      '#options' => $emails,
+      '#description' => t('Select one or more users to notify'),
+      '#multiple' => FALSE,
+      '#hidden' => $email_transition,
+    );
+  }
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function workbench_ux_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'workbench_moderation_moderate_form' && isset($form['node'])) {
+    $form['publishing_options'] = array(
+      '#type' => 'fieldset', 
+      '#title' => t('Publishing options'), 
+      '#weight' => -99,
+      '#collapsible' => FALSE, 
+    );
+    $current_state = workbench_moderation_state_label($form['node']['#value']->workbench_moderation['current']->state);
+
+    $form['publishing_options']['current_state'] = array(
+      '#type' => 'select',
+      '#title' => t('Current state'),
+      '#options' => array($current_state),
+      '#disabled' => TRUE,
+      '#weight' => -99,
+    );
+    $form['publishing_options']['state'] = $form['state']; unset($form['state']);
+    $form['publishing_options']['state']['#title'] = t('Change state to');
+    $form['publishing_options']['state']['#weight'] = -98;
+    unset($form['publishing_options']['state']['#title_display']);
+
+    $form['publishing_options']['note'] = $form['note']; unset($form['note']);
+
+    $form['publishing_options']['submit'] = $form['submit']; unset($form['submit']);
+    $form['publishing_options']['submit']['#value'] = t('Update state');
+  }
+}

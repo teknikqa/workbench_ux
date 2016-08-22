@@ -1,0 +1,5 @@
+name = Workbench (Moderation) User Experience Enhancements
+description = Alters some default settings of Workbench Moderation to enhance the moderation experience for users.
+package = Workbench
+core = 7.x
+dependencies[] = workbench_moderation
